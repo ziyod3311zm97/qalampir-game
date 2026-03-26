@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Qalampir PvP Online</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        :root { 
+            --bg: #0d0f14; 
+            --card: #1a1d26; 
+            --accent: #00ffb4; 
+            --danger: #ff1744; 
+            --gold: #ffd232; 
+        }
+        body { 
+            margin: 0; 
+            background: var(--bg); 
+            color: white; 
+            font-family: sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+            height: 100vh; 
+            overflow: hidden; 
+        }
+        .header {
+            text-align: center;
+            padding: 15px;
+            font-weight: bold;
+            background: var(--card);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .battle-arena { 
+            flex: 1; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: center; 
+            align-items: center; 
+            gap: 15px; 
+        }
+        .zone { 
+            width: 90%; 
+            max-width: 260px; 
+            padding: 15px; 
+            border-radius: 20px; 
+            border: 1.5px dashed rgba(255,255,255,0.1); 
+            display: flex; 
+            flex-direction: column; 
+            gap: 10px; 
+        }
+        .grid { 
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr); 
+            gap: 12px; 
+            width: 100%; 
+        }
+        .cell { 
+            aspect-ratio: 1/1; 
+            background: rgba(255,255,255,0.05); 
+            border: 1px solid rgba(255,255,255,0.1); 
+            border-radius: 12px; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            font-size: 28px; 
+            cursor: pointer; 
+            transition: 0.3s;
+        }
+        .opp-cell.hit { background: var(--accent) !important; box-shadow: 0 0 15px var(--accent); }
+        .opp-cell.miss { background: var(--danger) !important; opacity: 0.5; }
+        .my-cell.selected { background: var(--accent); border-color: white; transform: scale(0.95); }
+        
+        .footer { 
+            padding: 25px; 
+            background: var(--card); 
+            text-align: center; 
+            border-radius: 25px 25px 0 0; 
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.5);
+        }
+        #action-btn { 
+            width: 100%; 
+            height: 55px; 
+            background: var(--gold); 
+            border: none; 
+            border-radius: 15px; 
+            font-weight: bold; 
+            font-size: 18px; 
+            color: black; 
+            cursor: pointer; 
+        }
+        #status-text { font-size: 16px; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+    <div class="header">🌶️ QALAMPIR BATTLE PvP</div>
+    
+    <div class="battle-arena">
+        <div class="zone" style="background: rgba(255,50,70,0.05);">
+            <div style="font-size: 12px; color: var(--danger); text-align: center;">RAQIB MAYDONI</div>
+            <div class="grid" id="opp-grid">
+                <div class="cell opp-cell" onclick="attack(0)">?</div>
+                <div class="cell opp-cell" onclick="attack(1)">?</div>
+                <div class="cell opp-cell" onclick="attack(2)">?</div>
+                <div class="cell opp-cell" onclick="attack(3)">?</div>
+                <div class="cell opp-cell" onclick="attack(4)">?</div>
+                <div class="cell opp-cell" onclick="attack(5)">?</div>
+            </div>
+        </div>
+
+        <div style="background:var(--danger); padding:2px 12px; border-radius:10px; font-size:12px; font-weight:bold;">VS</div>
+
+        <div class="zone" style="background: rgba(0,255,180,0.05);">
+            <div style="font-size: 12px; color: var(--accent); text-align: center;">SIZNING MAYDONINGIZ</div>
+            <div class="grid">
+                <div class="cell my-cell" onclick="hide(0)"></div>
+                <div class="cell my-cell" onclick="hide(1)"></div>
+                <div class="cell my-cell" onclick="hide(2)"></div>
+                <div class="cell my-cell" onclick="hide(3)"></div>
+                <div class="cell my-cell" onclick="hide(4)"></div>
+                <div class="cell my-cell" onclick="hide(5)"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <div id="status-text" style="color:var(--gold);">Raqib qidirilmoqda...</div>
+        <button id="action-btn" onclick="confirmSelection()" style="display:none;">TAYYORMAN!</button>
+    </div>
+
+    <script>
+        // Kamatera serveringiz manzili
+        const socket = io("http://83.229.84.120:3000");
+        let myPos = -1, enemyPepperPos = -1, currentRoom = null, gameActive = false;
+
+        // O'yin qidirish
+        socket.emit('find_match');
+
+        socket.on('match_found', (data) => {
+            currentRoom = data.roomId;
+            gameActive = true;
+            document.getElementById('status-text').innerText = "Raqib topildi! Qalampirni yashiring.";
+            document.getElementById('action-btn').style.display = 'block';
+        });
+
+        // Qalampirni yashirish funksiyasi
+        function hide(idx) {
+            if (!gameActive) return;
+            myPos = idx;
+            const cells = document.querySelectorAll('.my-cell');
+            cells.forEach(c => { 
+                c.classList.remove('selected'); 
+                c.innerText = ''; 
+            });
+            cells[idx].classList.add('selected'); 
+            cells[idx].innerText = '🌶️';
+        }
+
+        // Tanlovni tasdiqlash
+        function confirmSelection() {
+            if (myPos === -1) return alert("Avval qalampirni kataklardan biriga yashiring!");
+            socket.emit('set_pepper', { roomId: currentRoom, pos: myPos });
+            document.getElementById('status-text').innerText = "Raqibning tanlovini kutilmoqda...";
+            document.getElementById('action-btn').style.display = 'none';
+        }
+
+        socket.on('opponent_ready', (data) => {
+            enemyPepperPos = data.pos;
+            document.getElementById('status-text').innerText = "Jang boshlandi! Raqib qalampirini toping!";
+        });
+
+        // Hujum qilish funksiyasi
+        function attack(idx) {
+            if (enemyPepperPos === -1 || !gameActive) return;
+            const cells = document.querySelectorAll('.opp-cell');
+            if (cells[idx].innerText !== '?') return; // Avval bosilgan bo'lsa qaytadi
+
+            if (idx === enemyPepperPos) {
+                cells[idx].classList.add('hit'); 
+                cells[idx].innerText = '🌶️';
+                document.getElementById('status-text').innerText = "G'ALABA! Siz topdingiz! 🔥";
+                socket.emit('attack', { roomId: currentRoom, index: idx });
+                gameActive = false;
+            } else {
+                cells[idx].classList.add('miss'); 
+                cells[idx].innerText = '✖';
+                document.getElementById('status-text').innerText = "Xato! Endi raqib hujum qiladi...";
+                socket.emit('attack', { roomId: currentRoom, index: idx });
+            }
+        }
+
+        // Raqib hujumini qabul qilish
+        socket.on('receive_attack', (data) => {
+            const myCells = document.querySelectorAll('.my-cell');
+            if (data.index === myPos) {
+                myCells[data.index].style.background = '#ff1744';
+                document.getElementById('status-text').innerText = "MAG'LUBIYAT! Raqib topib oldi! 💀";
+                gameActive = false;
+            } else {
+                myCells[data.index].innerText = '💨';
+                document.getElementById('status-text').innerText = "Raqib adashdi! Navbat sizda.";
+            }
+        });
+    </script>
+</body>
+  </html>
+  
